@@ -105,6 +105,6 @@ pub fn main() {
     decode.success(Game(id, players, winner, prize))
   }
 
-  juno.decode(json, using: [active_player_decoder, game_decoder])
+  juno.parse(json, using: [active_player_decoder, game_decoder])
 }
 ```
