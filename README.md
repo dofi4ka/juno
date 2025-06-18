@@ -24,7 +24,7 @@ gleam add juno
 ## 🦋 Usage
 
 ```gleam
-import gleam/dynamic
+import gleam/dynamic/decode
 import juno
 
 pub type Entity {
@@ -90,23 +90,21 @@ pub fn main() {
       }
     }"
 
-  let active_player_decoder =
-    dynamic.decode3(
-      Player,
-      dynamic.field("id", dynamic.string),
-      dynamic.field("score", dynamic.int),
-      dynamic.field("eliminated", dynamic.bool),
-    ) 
+  let active_player_decoder =  {
+    use id <- decode.field("id", decode.string)
+    use score <- decode.field("score", decode.int)
+    use eliminated <- decode.field("eliminated", decode.bool)
+    decode.success(Player(id, score, eliminated))
+  }
 
-  let game_decoder =
-    dynamic.decode4(
-      Game,
-      dynamic.field("id", dynamic.string),
-      dynamic.field("players", dynamic.list(dynamic.string)),
-      dynamic.field("winner", dynamic.string),
-      dynamic.field("prize", dynamic.string),
-    )
+  let game_decoder = {
+    use id <- decode.field("id", decode.string)
+    use players <- decode.field("players", decode.list(decode.string))
+    use winner <- decode.field("winner", decode.string)
+    use prize <- decode.field("prize", decode.string)
+    decode.success(Game(id, players, winner, prize))
+  }
 
-  juno.decode(json, [active_player_decoder, game_decoder])
+  juno.decode(json, using: [active_player_decoder, game_decoder])
 }
 ```
