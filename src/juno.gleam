@@ -34,7 +34,7 @@ pub fn revursive_decoder(
   custom: List(decode.Decoder(a)),
 ) -> decode.Decoder(Value(a)) {
   decode.recursive(fn() -> decode.Decoder(Value(a)) {
-    let wrapped_custom = list.map(custom, fn(dec) { decode.map(dec, Custom) })
+    let wrapped_custom = list.map(custom, decode.map(_, Custom))
 
     let int_d = decode.int |> decode.map(Int)
     let bool_d = decode.bool |> decode.map(Bool)
