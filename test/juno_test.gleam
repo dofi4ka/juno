@@ -1,5 +1,5 @@
 import gleam/dict
-import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/json
 
 import gleeunit
@@ -11,91 +11,54 @@ pub fn main() {
   gleeunit.main()
 }
 
-pub fn decode_test() {
-  let active_player_decoder =
-    dynamic.decode3(
-      Player,
-      dynamic.field("id", dynamic.string),
-      dynamic.field("score", dynamic.int),
-      dynamic.field("eliminated", dynamic.bool),
-    )
-
-  let game_decoder =
-    dynamic.decode4(
-      Game,
-      dynamic.field("id", dynamic.string),
-      dynamic.field("players", dynamic.list(dynamic.string)),
-      dynamic.field("winner", dynamic.string),
-      dynamic.field("prize", dynamic.string),
-    )
-
-  juno.decode(json, [active_player_decoder, game_decoder])
-  |> should.be_ok
-  |> should.equal(get_map())
+fn active_player_decoder() {
+  use id <- decode.field("id", decode.string)
+  use score <- decode.field("score", decode.int)
+  use eliminated <- decode.field("eliminated", decode.bool)
+  decode.success(Player(id, score, eliminated))
 }
 
-pub fn decode_number_test() {
-  let active_player_decoder =
-    dynamic.decode3(
-      Player,
-      dynamic.field("id", dynamic.string),
-      dynamic.field("score", dynamic.int),
-      dynamic.field("eliminated", dynamic.bool),
-    )
+fn game_decoder() {
+  use id <- decode.field("id", decode.string)
+  use players <- decode.field("players", decode.list(decode.string))
+  use winner <- decode.field("winner", decode.string)
+  use prize <- decode.field("prize", decode.string)
+  decode.success(Game(id, players, winner, prize))
+}
 
-  let game_decoder =
-    dynamic.decode4(
-      Game,
-      dynamic.field("id", dynamic.string),
-      dynamic.field("players", dynamic.list(dynamic.string)),
-      dynamic.field("winner", dynamic.string),
-      dynamic.field("prize", dynamic.string),
-    )
-
-  juno.decode(
-    30.2
-      |> json.float
+pub fn parse_number_test() {
+  juno.parse(
+    json.float(30.2)
       |> json.to_string,
-    [active_player_decoder, game_decoder],
+    [active_player_decoder(), game_decoder()],
   )
   |> should.be_ok
   |> should.equal(juno.Float(30.2))
 }
 
-pub fn decode_object_string_error_test() {
-  juno.decode_object(
+pub fn parse_object_string_error_test() {
+  juno.parse_object(
     "Gattaca"
       |> json.string
       |> json.to_string,
-    [],
+    [active_player_decoder(), game_decoder()],
   )
   |> should.be_error
 }
 
-pub fn decode_object_test() {
-  let active_player_decoder =
-    dynamic.decode3(
-      Player,
-      dynamic.field("id", dynamic.string),
-      dynamic.field("score", dynamic.int),
-      dynamic.field("eliminated", dynamic.bool),
-    )
-
-  let game_decoder =
-    dynamic.decode4(
-      Game,
-      dynamic.field("id", dynamic.string),
-      dynamic.field("players", dynamic.list(dynamic.string)),
-      dynamic.field("winner", dynamic.string),
-      dynamic.field("prize", dynamic.string),
-    )
-
-  juno.decode_object(json, [active_player_decoder, game_decoder])
+pub fn parse_object_test() {
+  juno.parse_object(json, [active_player_decoder(), game_decoder()])
   |> should.be_ok
   |> should.equal(get_map())
 }
 
-type Entity {
+pub fn parse_test() {
+  juno.parse(json, [active_player_decoder(), game_decoder()])
+  |> should.be_ok
+  |> should.equal(get_map())
+}
+
+pub type Entity {
   Player(id: String, score: Int, eliminated: Bool)
   Game(id: String, players: List(String), winner: String, prize: String)
 }
@@ -103,6 +66,7 @@ type Entity {
 const json = "{
       \"2023-11-24\": {
         \"weather\": \"rainy\",
+        \"accidents\": null,
         \"attending\": {
           \"anton\": {
             \"id\": \"P36\",
@@ -165,6 +129,7 @@ fn get_map() {
         juno.Object(
           dict.from_list([
             #("weather", juno.String("rainy")),
+            #("accidents", juno.Null),
             #(
               "14:00",
               juno.Custom(Game("G528", ["P10", "P6"], "P10", "vacation")),

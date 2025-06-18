@@ -1,8 +1,8 @@
 import gleam/dict
 import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/json
 import gleam/list
-import gleam/option
 
 pub type Value(a) {
   Null
@@ -15,59 +15,62 @@ pub type Value(a) {
   Object(dict.Dict(String, Value(a)))
 }
 
-pub fn decode(json: String, custom_decoders: List(dynamic.Decoder(a))) {
-  json.decode(json, value(_, list.map(custom_decoders, wrap)))
+pub fn parse(json: String, using custom_decoders: List(decode.Decoder(a))) {
+  json.parse(json, revursive_decoder(custom_decoders))
 }
 
-pub fn decode_object(json: String, custom_decoders: List(dynamic.Decoder(a))) {
-  json.decode(json, object(list.map(custom_decoders, wrap)))
+pub fn parse_object(
+  json: String,
+  using custom_decoders: List(decode.Decoder(a)),
+) {
+  json.parse(
+    json,
+    decode.dict(decode.string, revursive_decoder(custom_decoders))
+      |> decode.map(Object),
+  )
 }
 
-fn wrap(decoder) {
-  dynamic.decode1(Custom, decoder)(_)
-}
+pub fn revursive_decoder(
+  custom: List(decode.Decoder(a)),
+) -> decode.Decoder(Value(a)) {
+  decode.recursive(fn() -> decode.Decoder(Value(a)) {
+    let wrapped_custom = list.map(custom, fn(dec) { decode.map(dec, Custom) })
 
-fn value(dyn, custom_decoders) {
-  let value_decoders =
-    list.append(custom_decoders, [
-      int(),
-      bool(),
-      float(),
-      string(),
-      array(custom_decoders),
-      object(custom_decoders),
-    ])
+    let int_d = decode.int |> decode.map(Int)
+    let bool_d = decode.bool |> decode.map(Bool)
+    let float_d = decode.float |> decode.map(Float)
+    let string_d = decode.string |> decode.map(String)
 
-  case dynamic.optional(dynamic.any(value_decoders))(dyn) {
-    Ok(option.Some(value)) -> Ok(value)
-    Ok(option.None) -> Ok(Null)
-    Error(error) -> Error(error)
-  }
-}
+    let array_d =
+      decode.list(revursive_decoder(custom))
+      |> decode.map(Array)
 
-fn object(custom_decoders) {
-  dynamic.decode1(
-    Object,
-    dynamic.dict(dynamic.string, value(_, custom_decoders)),
-  )(_)
-}
+    let object_d =
+      decode.dict(decode.string, revursive_decoder(custom))
+      |> decode.map(Object)
 
-fn array(custom_decoders) {
-  dynamic.decode1(Array, dynamic.list(value(_, custom_decoders)))(_)
-}
+    let null_d =
+      decode.new_primitive_decoder("Null", fn(data) {
+        case dynamic.classify(data) {
+          "Nil" -> Ok(Null)
+          _ -> Error(Null)
+        }
+      })
 
-fn int() {
-  dynamic.decode1(Int, dynamic.int)(_)
-}
+    let all =
+      list.append(wrapped_custom, [
+        int_d,
+        bool_d,
+        float_d,
+        string_d,
+        array_d,
+        object_d,
+        null_d,
+      ])
 
-fn float() {
-  dynamic.decode1(Float, dynamic.float)(_)
-}
-
-fn bool() {
-  dynamic.decode1(Bool, dynamic.bool)(_)
-}
-
-fn string() {
-  dynamic.decode1(String, dynamic.string)(_)
+    case all {
+      [] -> decode.failure(Null, "Value")
+      [first, ..rest] -> decode.one_of(first, or: rest)
+    }
+  })
 }
